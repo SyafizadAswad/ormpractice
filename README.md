@@ -10,7 +10,7 @@ Local full-stack environment for experimenting with heavy TypeORM `find` queries
 | Backend | Node.js, Express, TypeORM **0.3** |
 | Frontend | Angular **18** (standalone components) |
 
-The baseline query lives in `backend/src/services/issue.service.ts` (`findHeavyByItemIds`). TypeORM SQL logging is enabled when `TYPEORM_LOGGING=true` in `backend/.env`.
+The current query implementation lives in `backend/src/services/issue.service.ts` (`findHeavyByItemIds`): it joins the to-one relations and batch-loads comments and tags separately to avoid row multiplication from joining both collections. TypeORM SQL logging is enabled when `TYPEORM_LOGGING=true` in `backend/.env`.
 
 ## Prerequisites
 
@@ -166,6 +166,6 @@ Seed data (approximate): **5,000** issues, **400** items, **3** comments per iss
 
 ## Where to experiment
 
-1. Change `IssueService.findHeavyByItemIds` (QueryBuilder, partial selects, pagination).
+1. Experiment with `IssueService.findHeavyByItemIds` (QueryBuilder, partial selects, pagination, or alternate relation-loading strategies).
 2. Re-run the UI fetch and compare metrics.
 3. Inspect SQL and execution time in the backend console (`TYPEORM_LOGGING=true`).

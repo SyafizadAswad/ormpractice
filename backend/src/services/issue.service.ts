@@ -1,10 +1,9 @@
 import { In, Repository } from "typeorm";
 import { Issue } from "../entities/issue.entity";
 import { IssueDomain } from "../domain/issue.domain";
+import { IssueComment } from "../entities/issue-comment.entity";
+import { Tag } from "../entities/tag.entity";
 
-/**
- * Baseline "heavy find" path — refactor this for benchmarks (QueryBuilder, selective select, pagination, etc.).
- */
 export class IssueService {
   constructor(private readonly repository: Repository<Issue>) {}
 
@@ -17,14 +16,63 @@ export class IssueService {
           item2: "issue.manualCreateOne",
           item3: "issue.item",
           item4: "issue.assignee",
-          item5: "issue.comments",
-          item6: "issue.tags",
         },
       },
       where: {
         itemId: In(itemIds),
       },
     });
+
+    if (entities.length === 0) {
+      return [];
+    }
+
+    const issueIds = entities.map((issue) => issue.id);
+    const [comments, tagRows] = await Promise.all([
+      this.repository.manager.getRepository(IssueComment).find({
+        select: ["id", "issueId", "author", "body", "createdAt"],
+        where: { issueId: In(issueIds) },
+      }),
+      this.repository.manager
+        .getRepository(Tag)
+        .createQueryBuilder("tag")
+        .innerJoin("tag.issues", "issue")
+        .select("issue.id", "issueId")
+        .addSelect("tag.id", "tagId")
+        .addSelect("tag.name", "tagName")
+        .addSelect("tag.color", "tagColor")
+        .where("issue.id IN (:...issueIds)", { issueIds })
+        .getRawMany<{
+          issueId: number;
+          tagId: number;
+          tagName: string;
+          tagColor: string;
+        }>(),
+    ]);
+
+    const commentsByIssueId = new Map<number, IssueComment[]>();
+    for (const comment of comments) {
+      const issueComments = commentsByIssueId.get(comment.issueId) ?? [];
+      issueComments.push(comment);
+      commentsByIssueId.set(comment.issueId, issueComments);
+    }
+
+    const tagsByIssueId = new Map<number, Tag[]>();
+    for (const row of tagRows) {
+      const issueTags = tagsByIssueId.get(row.issueId) ?? [];
+      issueTags.push({
+        id: row.tagId,
+        name: row.tagName,
+        color: row.tagColor,
+        issues: [],
+      });
+      tagsByIssueId.set(row.issueId, issueTags);
+    }
+
+    for (const issue of entities) {
+      issue.comments = commentsByIssueId.get(issue.id) ?? [];
+      issue.tags = tagsByIssueId.get(issue.id) ?? [];
+    }
 
     return this.convertEntityToDomainCollection(entities);
   }
