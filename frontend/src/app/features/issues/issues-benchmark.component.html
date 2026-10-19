@@ -1,0 +1,111 @@
+<section class="page">
+  <header class="hero">
+    <div>
+      <p class="eyebrow">TypeORM 0.3 practice bench</p>
+      <h1>Heavy join query benchmark</h1>
+      <p class="subtitle">
+        Trigger <code>GET /issues</code> with deep
+        <code>leftJoinAndSelect</code> loads and compare client time, server
+        time, and payload size after refactors.
+      </p>
+    </div>
+  </header>
+
+  <div class="panel controls">
+    <label class="field">
+      <span>Item IDs to query (first N catalog items)</span>
+      <input
+        type="number"
+        min="1"
+        max="400"
+        [(ngModel)]="itemIdCount"
+        [disabled]="loading()"
+      />
+    </label>
+
+    <button type="button" class="primary" (click)="runFetch()" [disabled]="loading()">
+      {{ loading() ? 'Running query…' : 'Run heavy fetch' }}
+    </button>
+  </div>
+
+  @if (error()) {
+    <div class="panel error" role="alert">{{ error() }}</div>
+  }
+
+  <div class="metrics">
+    <article class="metric">
+      <h2>Client time</h2>
+      <p class="value">
+        {{ lastClientMs() !== null ? lastClientMs() + ' ms' : '—' }}
+      </p>
+    </article>
+    <article class="metric">
+      <h2>Server time</h2>
+      <p class="value">
+        {{ lastServerMs() !== null ? lastServerMs() + ' ms' : '—' }}
+      </p>
+    </article>
+    <article class="metric">
+      <h2>Payload size</h2>
+      <p class="value">
+        {{
+          lastPayloadBytes() !== null ? formatBytes(lastPayloadBytes()!) : '—'
+        }}
+      </p>
+    </article>
+    <article class="metric">
+      <h2>Issues returned</h2>
+      <p class="value">
+        {{ lastIssueCount() !== null ? lastIssueCount() : '—' }}
+      </p>
+    </article>
+  </div>
+
+  <div class="panel table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Item</th>
+          <th>Title</th>
+          <th>Status</th>
+          <th>Priority</th>
+          <th>Assignee</th>
+          <th>Tags</th>
+          <th>Comments</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (row of rows(); track row.id) {
+          <tr>
+            <td>{{ row.id }}</td>
+            <td>{{ row.itemId }}</td>
+            <td>{{ row.title }}</td>
+            <td><span class="pill">{{ row.status }}</span></td>
+            <td>{{ row.priority }}</td>
+            <td>
+              @if (row.assignee) {
+                {{ row.assignee.displayName }}
+                <span class="muted">({{ row.assignee.team }})</span>
+              } @else {
+                —
+              }
+            </td>
+            <td>
+              @for (tag of row.tags; track tag.name) {
+                <span class="tag" [style.background]="tag.color">{{
+                  tag.name
+                }}</span>
+              }
+            </td>
+            <td>{{ row.comments.length }}</td>
+          </tr>
+        } @empty {
+          <tr>
+            <td colspan="8" class="empty">Run a fetch to populate the table.</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+</section>

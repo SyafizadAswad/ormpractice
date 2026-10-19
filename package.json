@@ -1,0 +1,11 @@
+{
+  "name": "orm-practice-workspace",
+  "private": true,
+  "scripts": {
+    "docker:up": "docker compose up -d",
+    "docker:down": "docker compose down",
+    "backend:dev": "npm run dev --prefix backend",
+    "backend:seed": "npm run seed --prefix backend",
+    "frontend:dev": "npm start --prefix frontend"
+  }
+}
