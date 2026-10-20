@@ -12,9 +12,7 @@ import { Issue } from "../entities/issue.entity";
 import { IssueComment } from "../entities/issue-comment.entity";
 
 const ISSUE_TARGET = 5000;
-const ITEM_COUNT = 400;
-const TAG_COUNT = 40;
-const ASSIGNEE_COUNT = 80;
+const TAGS_PER_ISSUE = 2;
 const COMMENTS_PER_ISSUE = 3;
 
 const statuses = ["open", "in_progress", "blocked", "done", "archived"];
@@ -25,9 +23,8 @@ function pick<T>(arr: T[], index: number): T {
 }
 
 async function clearDatabase() {
-  await AppDataSource.query(`TRUNCATE TABLE issue_tags RESTART IDENTITY CASCADE`);
   await AppDataSource.query(
-    `TRUNCATE TABLE issue_comments, issues, tags, assignees, manual_create_ones, auto_create_ones, items RESTART IDENTITY CASCADE`,
+    `TRUNCATE TABLE issues, issue_comments, items, tags, assignees, manual_create_ones, auto_create_ones RESTART IDENTITY CASCADE`,
   );
 }
 
@@ -46,64 +43,6 @@ async function seed() {
   const issueRepo = AppDataSource.getRepository(Issue);
   const commentRepo = AppDataSource.getRepository(IssueComment);
 
-  console.log(`Seeding ${ITEM_COUNT} items...`);
-  const items = await itemRepo.save(
-    Array.from({ length: ITEM_COUNT }, (_, i) =>
-      itemRepo.create({
-        sku: `SKU-${String(i + 1).padStart(6, "0")}`,
-        name: `Catalog item ${i + 1}`,
-        description: `Synthetic catalog description for benchmarking joins (#${i + 1}).`,
-      }),
-    ),
-  );
-
-  console.log("Seeding relation lookup tables...");
-  const autoRows = await autoRepo.save(
-    Array.from({ length: ISSUE_TARGET }, (_, i) =>
-      autoRepo.create({
-        externalRef: `AUTO-${i + 1}`,
-        label: `Auto-created snapshot ${i + 1}`,
-        metadata: {
-          source: "seed",
-          revision: i % 7,
-          flags: ["a", "b", "c"].slice(0, (i % 3) + 1),
-        },
-      }),
-    ),
-  );
-
-  const manualRows = await manualRepo.save(
-    Array.from({ length: ISSUE_TARGET }, (_, i) =>
-      manualRepo.create({
-        createdBy: `user_${(i % 50) + 1}`,
-        note: `Manual override note for issue batch ${i + 1}`,
-        recordedAt: new Date(Date.now() - (i % 10_000) * 60_000),
-      }),
-    ),
-  );
-
-  const assignees = await assigneeRepo.save(
-    Array.from({ length: ASSIGNEE_COUNT }, (_, i) =>
-      assigneeRepo.create({
-        displayName: `Assignee ${i + 1}`,
-        email: `assignee${i + 1}@example.com`,
-        team: pick(teams, i),
-      }),
-    ),
-  );
-
-  const tags = await tagRepo.save(
-    Array.from({ length: TAG_COUNT }, (_, i) =>
-      tagRepo.create({
-        name: `tag-${i + 1}`,
-        color: pick(
-          ["#2563eb", "#16a34a", "#ca8a04", "#dc2626", "#7c3aed"],
-          i,
-        ),
-      }),
-    ),
-  );
-
   console.log(`Seeding ${ISSUE_TARGET} issues (batched)...`);
   const batchSize = 500;
   const allIssueIds: number[] = [];
@@ -113,22 +52,12 @@ async function seed() {
       { length: Math.min(batchSize, ISSUE_TARGET - offset) },
       (_, j) => {
         const i = offset + j;
-        const item = items[i % items.length]!;
         const created = new Date(Date.now() - (i % 20_000) * 30_000);
         return issueRepo.create({
-          itemId: item.id,
-          item,
-          title: `Issue ${i + 1} for ${item.sku}`,
+          title: `Issue ${i + 1} for SKU-${String(i + 1).padStart(6, "0")}`,
           description: `Long description payload for issue ${i + 1}. `.repeat(4),
           status: pick(statuses, i),
           priority: i % 5,
-          autoCreateOneId: autoRows[i]!.id,
-          autoCreateOne: autoRows[i]!,
-          manualCreateOneId: manualRows[i]!.id,
-          manualCreateOne: manualRows[i]!,
-          assigneeId: assignees[i % assignees.length]!.id,
-          assignee: assignees[i % assignees.length]!,
-          tags: [tags[i % tags.length]!, tags[(i + 3) % tags.length]!],
           createdAt: created,
           updatedAt: new Date(created.getTime() + (i % 48) * 3_600_000),
         });
@@ -138,6 +67,68 @@ async function seed() {
     const saved = await issueRepo.save(chunk);
     allIssueIds.push(...saved.map((s) => s.id));
     console.log(`  ... ${Math.min(offset + batchSize, ISSUE_TARGET)} / ${ISSUE_TARGET}`);
+  }
+
+  console.log("Seeding one-to-many related records...");
+  for (let offset = 0; offset < allIssueIds.length; offset += batchSize) {
+    const issueIds = allIssueIds.slice(offset, offset + batchSize);
+    const items = issueIds.map((issueId, index) => {
+      const i = offset + index;
+      return itemRepo.create({
+        issueId,
+        sku: `SKU-${String(i + 1).padStart(6, "0")}`,
+        name: `Catalog item ${i + 1}`,
+        description: `Synthetic catalog description for benchmarking joins (#${i + 1}).`,
+      });
+    });
+    const autoRows = issueIds.map((issueId, index) =>
+      autoRepo.create({
+        issueId,
+        externalRef: `AUTO-${offset + index + 1}`,
+        label: `Auto-created snapshot ${offset + index + 1}`,
+        metadata: {
+          source: "seed",
+          revision: (offset + index) % 7,
+          flags: ["a", "b", "c"].slice(0, ((offset + index) % 3) + 1),
+        },
+      }),
+    );
+    const manualRows = issueIds.map((issueId, index) =>
+      manualRepo.create({
+        issueId,
+        createdBy: `user_${((offset + index) % 50) + 1}`,
+        note: `Manual override note for issue batch ${offset + index + 1}`,
+        recordedAt: new Date(Date.now() - ((offset + index) % 10_000) * 60_000),
+      }),
+    );
+    const assignees = issueIds.map((issueId, index) =>
+      assigneeRepo.create({
+        issueId,
+        displayName: `Assignee ${offset + index + 1}`,
+        email: `assignee${offset + index + 1}@example.com`,
+        team: pick(teams, offset + index),
+      }),
+    );
+    const tags = issueIds.flatMap((issueId, index) =>
+      Array.from({ length: TAGS_PER_ISSUE }, (_, tagIndex) =>
+        tagRepo.create({
+          issueId,
+          name: `tag-${tagIndex + 1}`,
+          color: pick(
+            ["#2563eb", "#16a34a", "#ca8a04", "#dc2626", "#7c3aed"],
+            tagIndex,
+          ),
+        }),
+      ),
+    );
+
+    await Promise.all([
+      itemRepo.save(items),
+      autoRepo.save(autoRows),
+      manualRepo.save(manualRows),
+      assigneeRepo.save(assignees),
+      tagRepo.save(tags),
+    ]);
   }
 
   console.log("Seeding issue comments...");
@@ -163,7 +154,8 @@ async function seed() {
   }
 
   const issueCount = await issueRepo.count();
-  console.log(`Seed complete: ${issueCount} issues, ${items.length} items.`);
+  const itemCount = await itemRepo.count();
+  console.log(`Seed complete: ${issueCount} issues, ${itemCount} items.`);
   await AppDataSource.destroy();
 }
 

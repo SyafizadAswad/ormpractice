@@ -20,11 +20,11 @@ export interface IssuesResponse {
 
 export interface IssueRow {
   id: number;
-  itemId: number;
   title: string;
   status: string;
   priority: number;
-  assignee: { displayName: string; team: string } | null;
+  items: { id: number; sku: string; name: string }[];
+  assignees: { displayName: string; team: string }[];
   tags: { name: string; color: string }[];
   comments: { id: number }[];
 }

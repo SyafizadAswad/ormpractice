@@ -1,4 +1,10 @@
-import { Column, Entity, OneToMany, PrimaryGeneratedColumn } from "typeorm";
+import {
+  Column,
+  Entity,
+  JoinColumn,
+  ManyToOne,
+  PrimaryGeneratedColumn,
+} from "typeorm";
 import { Issue } from "./issue.entity";
 
 @Entity("items")
@@ -15,6 +21,13 @@ export class Item {
   @Column({ type: "text", nullable: true })
   description!: string | null;
 
-  @OneToMany(() => Issue, (issue) => issue.item)
-  issues!: Issue[];
+  @Column({ name: "issue_id", type: "int", nullable: true })
+  issueId!: number | null;
+
+  @ManyToOne(() => Issue, (issue) => issue.items, {
+    nullable: true,
+    onDelete: "CASCADE",
+  })
+  @JoinColumn({ name: "issue_id" })
+  issue!: Issue;
 }

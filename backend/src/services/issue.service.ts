@@ -1,12 +1,23 @@
 import { In, Repository } from "typeorm";
+import { Assignee } from "../entities/assignee.entity";
+import { AutoCreateOne } from "../entities/auto-create-one.entity";
+import { IssueComment } from "../entities/issue-comment.entity";
 import { Issue } from "../entities/issue.entity";
+import { Item } from "../entities/item.entity";
+import { ManualCreateOne } from "../entities/manual-create-one.entity";
+import { Tag } from "../entities/tag.entity";
 import { IssueDomain } from "../domain/issue.domain";
 
-/**
- * Baseline "heavy find" path — refactor this for benchmarks (QueryBuilder, selective select, pagination, etc.).
- */
 export class IssueService {
-  constructor(private readonly repository: Repository<Issue>) {}
+  constructor(
+    private readonly issueRepository: Repository<Issue>,
+    private readonly itemRepository: Repository<Item>,
+    private readonly autoCreateOneRepository: Repository<AutoCreateOne>,
+    private readonly manualCreateOneRepository: Repository<ManualCreateOne>,
+    private readonly assigneeRepository: Repository<Assignee>,
+    private readonly commentRepository: Repository<IssueComment>,
+    private readonly tagRepository: Repository<Tag>,
+  ) {}
 
   async findHeavyByItemIds(itemIds: number[]): Promise<IssueDomain[]> {
     const entities = await this.repository.find({
@@ -32,55 +43,50 @@ export class IssueService {
   convertEntityToDomainCollection(entities: Issue[]): IssueDomain[] {
     return entities.map((issue) => ({
       id: issue.id,
-      itemId: issue.itemId,
       title: issue.title,
       description: issue.description,
       status: issue.status,
       priority: issue.priority,
       createdAt: issue.createdAt.toISOString(),
       updatedAt: issue.updatedAt.toISOString(),
-      item: issue.item
-        ? {
-            id: issue.item.id,
-            sku: issue.item.sku,
-            name: issue.item.name,
-            description: issue.item.description,
-          }
-        : null,
-      autoCreateOne: issue.autoCreateOne
-        ? {
-            id: issue.autoCreateOne.id,
-            externalRef: issue.autoCreateOne.externalRef,
-            label: issue.autoCreateOne.label,
-            metadata: issue.autoCreateOne.metadata,
-          }
-        : null,
-      manualCreateOne: issue.manualCreateOne
-        ? {
-            id: issue.manualCreateOne.id,
-            createdBy: issue.manualCreateOne.createdBy,
-            note: issue.manualCreateOne.note,
-            recordedAt: issue.manualCreateOne.recordedAt.toISOString(),
-          }
-        : null,
-      assignee: issue.assignee
-        ? {
-            id: issue.assignee.id,
-            displayName: issue.assignee.displayName,
-            email: issue.assignee.email,
-            team: issue.assignee.team,
-          }
-        : null,
-      comments: (issue.comments ?? []).map((c) => ({
-        id: c.id,
-        author: c.author,
-        body: c.body,
-        createdAt: c.createdAt.toISOString(),
+      items: (itemsByIssueId.get(issue.id) ?? []).map((item) => ({
+        id: item.id,
+        sku: item.sku,
+        name: item.name,
+        description: item.description,
       })),
-      tags: (issue.tags ?? []).map((t) => ({
-        id: t.id,
-        name: t.name,
-        color: t.color,
+      autoCreateOnes: (autoCreateOnesByIssueId.get(issue.id) ?? []).map(
+        (row) => ({
+          id: row.id,
+          externalRef: row.externalRef,
+          label: row.label,
+          metadata: row.metadata,
+        }),
+      ),
+      manualCreateOnes: (manualCreateOnesByIssueId.get(issue.id) ?? []).map(
+        (row) => ({
+          id: row.id,
+          createdBy: row.createdBy,
+          note: row.note,
+          recordedAt: row.recordedAt.toISOString(),
+        }),
+      ),
+      assignees: (assigneesByIssueId.get(issue.id) ?? []).map((assignee) => ({
+        id: assignee.id,
+        displayName: assignee.displayName,
+        email: assignee.email,
+        team: assignee.team,
+      })),
+      comments: (commentsByIssueId.get(issue.id) ?? []).map((comment) => ({
+        id: comment.id,
+        author: comment.author,
+        body: comment.body,
+        createdAt: comment.createdAt.toISOString(),
+      })),
+      tags: (tagsByIssueId.get(issue.id) ?? []).map((tag) => ({
+        id: tag.id,
+        name: tag.name,
+        color: tag.color,
       })),
     }));
   }

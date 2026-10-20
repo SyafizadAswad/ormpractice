@@ -2,11 +2,10 @@
   <header class="hero">
     <div>
       <p class="eyebrow">TypeORM 0.3 practice bench</p>
-      <h1>Heavy join query benchmark</h1>
+      <h1>Issue relations query benchmark</h1>
       <p class="subtitle">
-        Trigger <code>GET /issues</code> with deep
-        <code>leftJoinAndSelect</code> loads and compare client time, server
-        time, and payload size after refactors.
+        Trigger <code>GET /issues</code> and compare client time, server time,
+        and payload size while loading related records from each table.
       </p>
     </div>
   </header>
@@ -17,14 +16,14 @@
       <input
         type="number"
         min="1"
-        max="400"
+        max="5000"
         [(ngModel)]="itemIdCount"
         [disabled]="loading()"
       />
     </label>
 
     <button type="button" class="primary" (click)="runFetch()" [disabled]="loading()">
-      {{ loading() ? 'Running query…' : 'Run heavy fetch' }}
+      {{ loading() ? 'Running query…' : 'Run issues fetch' }}
     </button>
   </div>
 
@@ -79,16 +78,20 @@
         @for (row of rows(); track row.id) {
           <tr>
             <td>{{ row.id }}</td>
-            <td>{{ row.itemId }}</td>
+            <td>
+              @for (item of row.items; track item.id) {
+                {{ item.sku }}
+              } @empty {
+                —
+              }
+            </td>
             <td>{{ row.title }}</td>
             <td><span class="pill">{{ row.status }}</span></td>
             <td>{{ row.priority }}</td>
             <td>
-              @if (row.assignee) {
-                {{ row.assignee.displayName }}
-                <span class="muted">({{ row.assignee.team }})</span>
-              } @else {
-                —
+              @for (assignee of row.assignees; track assignee.displayName) {
+                {{ assignee.displayName }}
+                <span class="muted">({{ assignee.team }})</span>
               }
             </td>
             <td>

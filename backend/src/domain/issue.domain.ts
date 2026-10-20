@@ -1,36 +1,35 @@
 export interface IssueDomain {
   id: number;
-  itemId: number;
   title: string;
   description: string;
   status: string;
   priority: number;
   createdAt: string;
   updatedAt: string;
-  item: {
+  items: Array<{
     id: number;
     sku: string;
     name: string;
     description: string | null;
-  } | null;
-  autoCreateOne: {
+  }>;
+  autoCreateOnes: Array<{
     id: number;
     externalRef: string;
     label: string;
     metadata: Record<string, unknown>;
-  } | null;
-  manualCreateOne: {
+  }>;
+  manualCreateOnes: Array<{
     id: number;
     createdBy: string;
     note: string;
     recordedAt: string;
-  } | null;
-  assignee: {
+  }>;
+  assignees: Array<{
     id: number;
     displayName: string;
     email: string;
     team: string;
-  } | null;
+  }>;
   comments: Array<{
     id: number;
     author: string;

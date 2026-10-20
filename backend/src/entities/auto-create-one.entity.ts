@@ -1,4 +1,10 @@
-import { Column, Entity, OneToMany, PrimaryGeneratedColumn } from "typeorm";
+import {
+  Column,
+  Entity,
+  JoinColumn,
+  ManyToOne,
+  PrimaryGeneratedColumn,
+} from "typeorm";
 import { Issue } from "./issue.entity";
 
 @Entity("auto_create_ones")
@@ -15,6 +21,13 @@ export class AutoCreateOne {
   @Column({ type: "jsonb", default: {} })
   metadata!: Record<string, unknown>;
 
-  @OneToMany(() => Issue, (issue) => issue.autoCreateOne)
-  issues!: Issue[];
+  @Column({ name: "issue_id", type: "int", nullable: true })
+  issueId!: number | null;
+
+  @ManyToOne(() => Issue, (issue) => issue.autoCreateOnes, {
+    nullable: true,
+    onDelete: "CASCADE",
+  })
+  @JoinColumn({ name: "issue_id" })
+  issue!: Issue;
 }

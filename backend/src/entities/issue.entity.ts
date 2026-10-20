@@ -1,10 +1,6 @@
 import {
   Column,
   Entity,
-  JoinColumn,
-  JoinTable,
-  ManyToMany,
-  ManyToOne,
   OneToMany,
   PrimaryGeneratedColumn,
 } from "typeorm";
@@ -20,12 +16,8 @@ export class Issue {
   @PrimaryGeneratedColumn()
   id!: number;
 
-  @Column({ name: "item_id", type: "int" })
-  itemId!: number;
-
-  @ManyToOne(() => Item, (item) => item.issues, { nullable: false })
-  @JoinColumn({ name: "item_id" })
-  item!: Item;
+  @OneToMany(() => Item, (item) => item.issue)
+  items!: Item[];
 
   @Column({ type: "varchar", length: 200 })
   title!: string;
@@ -39,36 +31,19 @@ export class Issue {
   @Column({ type: "int", default: 0 })
   priority!: number;
 
-  @Column({ name: "auto_create_one_id", type: "int", nullable: true })
-  autoCreateOneId!: number | null;
+  @OneToMany(() => AutoCreateOne, (row) => row.issue)
+  autoCreateOnes!: AutoCreateOne[];
 
-  @ManyToOne(() => AutoCreateOne, (row) => row.issues, { nullable: true })
-  @JoinColumn({ name: "auto_create_one_id" })
-  autoCreateOne!: AutoCreateOne | null;
+  @OneToMany(() => ManualCreateOne, (row) => row.issue)
+  manualCreateOnes!: ManualCreateOne[];
 
-  @Column({ name: "manual_create_one_id", type: "int", nullable: true })
-  manualCreateOneId!: number | null;
-
-  @ManyToOne(() => ManualCreateOne, (row) => row.issues, { nullable: true })
-  @JoinColumn({ name: "manual_create_one_id" })
-  manualCreateOne!: ManualCreateOne | null;
-
-  @Column({ name: "assignee_id", type: "int", nullable: true })
-  assigneeId!: number | null;
-
-  @ManyToOne(() => Assignee, (assignee) => assignee.issues, { nullable: true })
-  @JoinColumn({ name: "assignee_id" })
-  assignee!: Assignee | null;
+  @OneToMany(() => Assignee, (assignee) => assignee.issue)
+  assignees!: Assignee[];
 
   @OneToMany(() => IssueComment, (comment) => comment.issue)
   comments!: IssueComment[];
 
-  @ManyToMany(() => Tag, (tag) => tag.issues, { cascade: false })
-  @JoinTable({
-    name: "issue_tags",
-    joinColumn: { name: "issue_id", referencedColumnName: "id" },
-    inverseJoinColumn: { name: "tag_id", referencedColumnName: "id" },
-  })
+  @OneToMany(() => Tag, (tag) => tag.issue)
   tags!: Tag[];
 
   @Column({ type: "timestamptz" })
