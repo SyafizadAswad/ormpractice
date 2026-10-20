@@ -1,4 +1,5 @@
 import { In, Repository } from "typeorm";
+import { IssueDomain } from "../domain/issue.domain";
 import { Assignee } from "../entities/assignee.entity";
 import { AutoCreateOne } from "../entities/auto-create-one.entity";
 import { IssueComment } from "../entities/issue-comment.entity";
@@ -6,7 +7,6 @@ import { Issue } from "../entities/issue.entity";
 import { Item } from "../entities/item.entity";
 import { ManualCreateOne } from "../entities/manual-create-one.entity";
 import { Tag } from "../entities/tag.entity";
-import { IssueDomain } from "../domain/issue.domain";
 
 export class IssueService {
   constructor(
@@ -20,28 +20,94 @@ export class IssueService {
   ) {}
 
   async findHeavyByItemIds(itemIds: number[]): Promise<IssueDomain[]> {
-    const entities = await this.repository.find({
-      join: {
-        alias: "issue",
-        leftJoinAndSelect: {
-          item1: "issue.autoCreateOne",
-          item2: "issue.manualCreateOne",
-          item3: "issue.item",
-          item4: "issue.assignee",
-          item5: "issue.comments",
-          item6: "issue.tags",
-        },
-      },
-      where: {
-        itemId: In(itemIds),
-      },
+    const matchingItems = await this.itemRepository.find({
+      select: ["id", "issueId"],
+      where: { id: In(itemIds) },
     });
+    const issueIds = [
+      ...new Set(
+        matchingItems.flatMap((item) =>
+          item.issueId === null ? [] : [item.issueId],
+        ),
+      ),
+    ];
+    if (issueIds.length === 0) {
+      return [];
+    }
 
-    return this.convertEntityToDomainCollection(entities);
-  }
+    const issues = await this.issueRepository.find({
+      where: { id: In(issueIds) },
+    });
+    const [items, autoCreateOnes, manualCreateOnes, assignees, comments, tags] =
+      await Promise.all([
+        this.itemRepository.find({ where: { issueId: In(issueIds) } }),
+        this.autoCreateOneRepository.find({ where: { issueId: In(issueIds) } }),
+        this.manualCreateOneRepository.find({
+          where: { issueId: In(issueIds) },
+        }),
+        this.assigneeRepository.find({ where: { issueId: In(issueIds) } }),
+        this.commentRepository.find({ where: { issueId: In(issueIds) } }),
+        this.tagRepository.find({ where: { issueId: In(issueIds) } }),
+      ]);
 
-  convertEntityToDomainCollection(entities: Issue[]): IssueDomain[] {
-    return entities.map((issue) => ({
+    const itemsByIssueId = new Map<number, Item[]>();
+    for (const item of items) {
+      if (item.issueId === null) {
+        continue;
+      }
+      const issueItems = itemsByIssueId.get(item.issueId) ?? [];
+      issueItems.push(item);
+      itemsByIssueId.set(item.issueId, issueItems);
+    }
+
+    const autoCreateOnesByIssueId = new Map<number, AutoCreateOne[]>();
+    for (const row of autoCreateOnes) {
+      if (row.issueId === null) {
+        continue;
+      }
+      const issueRows = autoCreateOnesByIssueId.get(row.issueId) ?? [];
+      issueRows.push(row);
+      autoCreateOnesByIssueId.set(row.issueId, issueRows);
+    }
+
+    const manualCreateOnesByIssueId = new Map<number, ManualCreateOne[]>();
+    for (const row of manualCreateOnes) {
+      if (row.issueId === null) {
+        continue;
+      }
+      const issueRows = manualCreateOnesByIssueId.get(row.issueId) ?? [];
+      issueRows.push(row);
+      manualCreateOnesByIssueId.set(row.issueId, issueRows);
+    }
+
+    const assigneesByIssueId = new Map<number, Assignee[]>();
+    for (const assignee of assignees) {
+      if (assignee.issueId === null) {
+        continue;
+      }
+      const issueAssignees = assigneesByIssueId.get(assignee.issueId) ?? [];
+      issueAssignees.push(assignee);
+      assigneesByIssueId.set(assignee.issueId, issueAssignees);
+    }
+
+    const commentsByIssueId = new Map<number, IssueComment[]>();
+    for (const comment of comments) {
+      const issueComments = commentsByIssueId.get(comment.issueId) ?? [];
+      issueComments.push(comment);
+      commentsByIssueId.set(comment.issueId, issueComments);
+    }
+
+    const tagsByIssueId = new Map<number, Tag[]>();
+    for (const tag of tags) {
+      if (tag.issueId === null) {
+        continue;
+      }
+      const issueTags = tagsByIssueId.get(tag.issueId) ?? [];
+      issueTags.push(tag);
+      tagsByIssueId.set(tag.issueId, issueTags);
+    }
+
+    return issues.map((issue) => ({
       id: issue.id,
       title: issue.title,
       description: issue.description,
