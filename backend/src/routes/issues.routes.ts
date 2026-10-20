@@ -3,22 +3,9 @@ import { AppDataSource } from "../data-source";
 import { Issue } from "../entities/issue.entity";
 import { IssueService } from "../services/issue.service";
 import { Item } from "../entities/item.entity";
-import { AutoCreateOne } from "../entities/auto-create-one.entity";
-import { ManualCreateOne } from "../entities/manual-create-one.entity";
-import { Assignee } from "../entities/assignee.entity";
-import { IssueComment } from "../entities/issue-comment.entity";
-import { Tag } from "../entities/tag.entity";
 
 const router = Router();
-const issueService = new IssueService(
-  AppDataSource.getRepository(Issue),
-  AppDataSource.getRepository(Item),
-  AppDataSource.getRepository(AutoCreateOne),
-  AppDataSource.getRepository(ManualCreateOne),
-  AppDataSource.getRepository(Assignee),
-  AppDataSource.getRepository(IssueComment),
-  AppDataSource.getRepository(Tag),
-);
+const issueService = new IssueService(AppDataSource.getRepository(Issue));
 
 router.get("/meta/items", async (_req: Request, res: Response) => {
   const items = await AppDataSource.getRepository(Item).find({
