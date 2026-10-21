@@ -3,9 +3,14 @@ import { AppDataSource } from "../data-source";
 import { Issue } from "../entities/issue.entity";
 import { IssueService } from "../services/issue.service";
 import { Item } from "../entities/item.entity";
+import { IssueComment } from "../entities/issue-comment.entity";
+import { Tag } from "../entities/tag.entity";
 
 const router = Router();
-const issueService = new IssueService(AppDataSource.getRepository(Issue));
+const issueService = new IssueService(
+  AppDataSource.getRepository(Issue),
+  AppDataSource.getRepository(IssueComment),
+);
 
 router.get("/meta/items", async (_req: Request, res: Response) => {
   const items = await AppDataSource.getRepository(Item).find({
