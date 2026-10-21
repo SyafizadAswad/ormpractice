@@ -3,6 +3,7 @@ import { AppDataSource } from "../data-source";
 import { Issue } from "../entities/issue.entity";
 import { IssueService } from "../services/issue.service";
 import { Item } from "../entities/item.entity";
+import { IssueComment } from "../entities/issue-comment.entity";
 
 const router = Router();
 const issueService = new IssueService(AppDataSource.getRepository(Issue));

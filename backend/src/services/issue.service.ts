@@ -2,23 +2,17 @@ import { In, Repository } from "typeorm";
 import { Issue } from "../entities/issue.entity";
 import { IssueDomain } from "../domain/issue.domain";
 
-/**
- * Baseline "heavy find" path — refactor this for benchmarks (QueryBuilder, selective select, pagination, etc.).
- */
 export class IssueService {
   constructor(private readonly repository: Repository<Issue>) {}
 
   async findHeavyByItemIds(itemIds: number[]): Promise<IssueDomain[]> {
+    // 1. First query: autoCreateOne + manualCreateOne
     const entities = await this.repository.find({
       join: {
         alias: "issue",
         leftJoinAndSelect: {
           item1: "issue.autoCreateOne",
           item2: "issue.manualCreateOne",
-          item3: "issue.item",
-          item4: "issue.assignee",
-          item5: "issue.comments",
-          item6: "issue.tags",
         },
       },
       where: {
@@ -26,6 +20,60 @@ export class IssueService {
       },
     });
 
+    if (entities.length === 0) {
+      return [];
+    }
+
+    const issueIds = entities.map((issue) => issue.id);
+
+    // 2. Second query: item + assignee
+    const entitiesWithItemAndAssignee = await this.repository.find({
+      join: {
+        alias: "issue",
+        leftJoinAndSelect: {
+          item3: "issue.item",
+          item4: "issue.assignee",
+        },
+      },
+      where: {
+        id: In(issueIds),
+      },
+    });
+
+    // 3. Third query: comments + tags
+    const entitiesWithCommentsAndTags = await this.repository.find({
+      join: {
+        alias: "issue",
+        leftJoinAndSelect: {
+          item5: "issue.comments",
+          item6: "issue.tags",
+        },
+      },
+      where: {
+        id: In(issueIds),
+      },
+    });
+
+    // 4. Merge the second and third query results
+    for (const issue of entities) {
+      const issueWithItemAndAssignee = entitiesWithItemAndAssignee.find(
+        (result) => result.id === issue.id,
+      );
+
+      const issueWithCommentsAndTags = entitiesWithCommentsAndTags.find(
+        (result) => result.id === issue.id,
+      );
+
+      if (issueWithItemAndAssignee) {
+        issue.item = issueWithItemAndAssignee.item;
+        issue.assignee = issueWithItemAndAssignee.assignee;
+      }
+
+      issue.comments = issueWithCommentsAndTags?.comments ?? [];
+      issue.tags = issueWithCommentsAndTags?.tags ?? [];
+    }
+
+    // 5. Convert as before
     return this.convertEntityToDomainCollection(entities);
   }
 
