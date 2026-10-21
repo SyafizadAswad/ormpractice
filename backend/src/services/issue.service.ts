@@ -6,13 +6,15 @@ export class IssueService {
   constructor(private readonly repository: Repository<Issue>) {}
 
   async findHeavyByItemIds(itemIds: number[]): Promise<IssueDomain[]> {
-    // 1. First query: autoCreateOne + manualCreateOne
+    // 1. Fetch issues with the four single-record relations
     const entities = await this.repository.find({
       join: {
         alias: "issue",
         leftJoinAndSelect: {
           item1: "issue.autoCreateOne",
           item2: "issue.manualCreateOne",
+          item3: "issue.item",
+          item4: "issue.assignee",
         },
       },
       where: {
@@ -26,54 +28,49 @@ export class IssueService {
 
     const issueIds = entities.map((issue) => issue.id);
 
-    // 2. Second query: item + assignee
-    const entitiesWithItemAndAssignee = await this.repository.find({
-      join: {
-        alias: "issue",
-        leftJoinAndSelect: {
-          item3: "issue.item",
-          item4: "issue.assignee",
+    // 2. Fetch comments and tags separately, at the same time
+    const [entitiesWithComments, entitiesWithTags] = await Promise.all([
+      this.repository.find({
+        join: {
+          alias: "issue",
+          leftJoinAndSelect: {
+            item5: "issue.comments",
+          },
         },
-      },
-      where: {
-        id: In(issueIds),
-      },
-    });
-
-    // 3. Third query: comments + tags
-    const entitiesWithCommentsAndTags = await this.repository.find({
-      join: {
-        alias: "issue",
-        leftJoinAndSelect: {
-          item5: "issue.comments",
-          item6: "issue.tags",
+        where: {
+          id: In(issueIds),
         },
-      },
-      where: {
-        id: In(issueIds),
-      },
-    });
+      }),
 
-    // 4. Merge the second and third query results
+      this.repository.find({
+        join: {
+          alias: "issue",
+          leftJoinAndSelect: {
+            item6: "issue.tags",
+          },
+        },
+        where: {
+          id: In(issueIds),
+        },
+      }),
+    ]);
+
+    // 3. Create maps for quick lookup by issue ID
+    const commentsByIssueId = new Map(
+      entitiesWithComments.map((issue) => [issue.id, issue.comments ?? []]),
+    );
+
+    const tagsByIssueId = new Map(
+      entitiesWithTags.map((issue) => [issue.id, issue.tags ?? []]),
+    );
+
+    // 4. Attach the collections to the original issues
     for (const issue of entities) {
-      const issueWithItemAndAssignee = entitiesWithItemAndAssignee.find(
-        (result) => result.id === issue.id,
-      );
-
-      const issueWithCommentsAndTags = entitiesWithCommentsAndTags.find(
-        (result) => result.id === issue.id,
-      );
-
-      if (issueWithItemAndAssignee) {
-        issue.item = issueWithItemAndAssignee.item;
-        issue.assignee = issueWithItemAndAssignee.assignee;
-      }
-
-      issue.comments = issueWithCommentsAndTags?.comments ?? [];
-      issue.tags = issueWithCommentsAndTags?.tags ?? [];
+      issue.comments = commentsByIssueId.get(issue.id) ?? [];
+      issue.tags = tagsByIssueId.get(issue.id) ?? [];
     }
 
-    // 5. Convert as before
+    // 5. Keep your existing conversion unchanged
     return this.convertEntityToDomainCollection(entities);
   }
 
